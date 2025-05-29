@@ -1,55 +1,61 @@
-// ethip-listener.ts
+#!/usr/bin/env ts-node
+
 import { IO, IOConfig } from "st-ethernet-ip";
 
-async function startListener() {
-  // 1) Create the scanner (listens on UDP 2222 by default)
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const PLC_IP = "192.168.1.10";
+
+// ─── I/O CONFIG ───────────────────────────────────────────────────────────────
+const inputConfig: IOConfig["inputInstance"] = { assembly: 101, size: 12 * 2 };
+const outputConfig: IOConfig["outputInstance"] = { assembly: 200, size: 16 };
+
+const config: IOConfig = {
+  configInstance: { assembly: 0, size: 0 },
+  inputInstance: inputConfig,
+  outputInstance: outputConfig,
+};
+
+// ─── TAG LABELS ───────────────────────────────────────────────────────────────
+const tagNames = [
+  "North Head Bearing", // Data[0]
+  "South Head Bearing", // Data[1]
+  "North Boot Bearing", // Data[2]
+  "South Boot Bearing", // Data[3]
+  "North Head Rub Block", // Data[4]
+  "South Head Rub Block", // Data[5]
+  "North Boot Rub Block", // Data[6]
+  "South Boot Rub Block", // Data[7]
+  "West Bearing", // Data[8]
+  "East Bearing", // Data[9]
+  "Rpm", // Data[10]
+  "Inventory Placeholder", // Data[11]
+];
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+async function main(): Promise<void> {
   const scanner = new IO.Scanner();
+  console.log(`🔌 Connecting to PLC @ ${PLC_IP}…`);
 
-  // 2) Define the same assembly IDs & sizes your PLC Produce uses.
-  //    - configInstance: (optional) data **you** send to the PLC (size in bytes)
-  //    - inputInstance:  data coming **from** the PLC (size in bytes)
-  //    - outputInstance: data going **to** the PLC (size in bytes)
-  //
-  // Swap these placeholders for the values from your PLC programmer:
-  const config: IOConfig = {
-    configInstance: { assembly: 0, size: 0 }, // usually 0 if you don't send config
-    inputInstance: { assembly: 101, size: 12 }, // e.g. PLC’s “assembly 101” → 12 bytes
-    outputInstance: { assembly: 102, size: 4 }, // e.g. PLC’s “assembly 102” → 4  bytes
-  };
+  const plc = await scanner.connectPLC({ target: PLC_IP, cpuSlot: 0 });
+  plc.config(config);
 
-  // 3) Add a connection: (config, RPI in ms, PLC_IP)
-  //    RPI = Requested Packet Interval (how often PLC will send)
-  const RPI_MS = 50;
-  const PLC_IP = "192.168.1.50";
-  const conn = scanner.addConnection(config, RPI_MS, PLC_IP);
+  plc.on("ImplicitMessage", (msg: Buffer) => {
+    const buf = Buffer.from(msg);
+    const data: Record<string, number> = {};
 
-  // 4) Handle the first “connected” event
-  conn.on("connected", () => {
-    console.log("🔗 Implicit session established with PLC");
-    console.log("▶ Input data buffer:", conn.inputData);
-    console.log("◀ Output data buffer:", conn.outputData);
+    tagNames.forEach((label, idx) => {
+      data[label] = buf.readInt16LE(idx * 2);
+    });
 
-    // 5) (Optional) alias fields for easy access:
-    //    skip 0 bytes, read a 16-bit integer as “sensorValue”
-    conn.addInputInt(0, "sensorValue");
-    //    skip 2 bytes, read a BOOL (bit 3) as “alarm”
-    conn.addInputBit(2, 3, "alarm");
-
-    // 6) Whenever new UDP packets arrive, you can grab values like:
-    setInterval(() => {
-      console.log(
-        "Sensor=",
-        conn.getValue("sensorValue"),
-        "Alarm=",
-        conn.getValue("alarm")
-      );
-    }, 200);
+    console.log({ timestamp: new Date().toISOString(), ...data });
+    // ← TODO: push `data` into your cloud API / MQTT / DB
   });
 
-  // 7) Handle disconnects (e.g. PLC fault or network hiccup)
-  conn.on("disconnected", () => {
-    console.warn("⚠️ Disconnected from PLC, waiting to re-connect…");
-  });
+  scanner.begin();
+  console.log("✅ PLC bridge running (101:24B in → 200:16B out)");
 }
 
-startListener().catch((err) => console.error("💥 Startup error:", err));
+main().catch((err) => {
+  console.error("Fatal PLC bridge error:", err);
+  process.exit(1);
+});
