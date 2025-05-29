@@ -168,16 +168,22 @@ async function main() {
  */
 async function insertReading(tagName: string, value: any) {
   const displayName = tagLabelMap[tagName] || tagName;
-  const { error } = await supabase.from("tag_readings").insert([
-    {
-      timestamp: new Date().toISOString(),
-      tag_name: tagName,
-      display_name: displayName,
-      value,
-    },
-  ]);
+  const row = {
+    timestamp: new Date().toISOString(),
+    tag_name: tagName,
+    display_name: displayName,
+    value,
+  };
+
+  // ▶️ DEBUG: print what we're inserting
+  console.log("Inserting row:", JSON.stringify(row));
+
+  const { data, error } = await supabase.from("tag_readings").insert([row]);
+
   if (error) {
-    console.error("Supabase insert error:", error.message);
+    console.error("Supabase insert error:", error.message, error.details);
+  } else {
+    console.log("Insert succeeded, returned:", data);
   }
 }
 
