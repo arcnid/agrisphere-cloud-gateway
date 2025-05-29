@@ -8,10 +8,8 @@ services:
     env_file:
       - .env
     restart: unless-stopped
-    privileged: true
-    pid: host
+    privileged: true # Required for hardware access
     volumes:
       - /usr/bin/piTest:/usr/bin/piTest
-      - /usr/lib:/usr/lib
       - /dev:/dev
       - /var/run/piserial:/var/run/piserial
