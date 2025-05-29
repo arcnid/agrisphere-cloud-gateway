@@ -39,6 +39,22 @@ const tagNames = [
   "Agrisphere:O.Data[11]",
 ];
 
+// ─── TAG → LABEL MAP ─────────────────────────────────────────────────────────
+const tagLabelMap: Record<string, string> = {
+  "Agrisphere:O.Data[10]": "Rpm",
+  "Agrisphere:O.Data[0]": "North Head Bearing",
+  "Agrisphere:O.Data[4]": "North Head Rub Block",
+  "Agrisphere:O.Data[1]": "South Head Bearing",
+  "Agrisphere:O.Data[5]": "South Head Rub Block",
+  "Agrisphere:O.Data[6]": "North Boot Rub Block",
+  "Agrisphere:O.Data[7]": "South Boot Rub Block",
+  "Agrisphere:O.Data[2]": "North Boot Bearing",
+  "Agrisphere:O.Data[3]": "South Boot Bearing",
+  "Agrisphere:O.Data[9]": "East Bearing",
+  "Agrisphere:O.Data[8]": "West Bearing",
+  "Agrisphere:O.Data[11]": "Inventory Placeholder",
+};
+
 // ─── LED HELPERS ──────────────────────────────────────────────────────────────
 // A4 bit-masks: green = 64, red = 128, orange = 192
 const LED_MASKS = {
@@ -148,14 +164,18 @@ async function main() {
 }
 
 /**
- * Inserts a tag reading into Supabase
+ * Inserts a tag reading into Supabase, now with display_name.
  */
 async function insertReading(tagName: string, value: any) {
-  const { error } = await supabase
-    .from("tag_readings")
-    .insert([
-      { timestamp: new Date().toISOString(), tag_name: tagName, value },
-    ]);
+  const displayName = tagLabelMap[tagName] || tagName;
+  const { error } = await supabase.from("tag_readings").insert([
+    {
+      timestamp: new Date().toISOString(),
+      tag_name: tagName,
+      display_name: displayName,
+      value,
+    },
+  ]);
   if (error) {
     console.error("Supabase insert error:", error.message);
   }
