@@ -43,8 +43,8 @@ const tagNames = [
 // A4 bit-masks: green = 64, red = 128, orange = 192
 const LED_MASKS = {
   off: 0,
-  green: 64,
-  red: 128,
+  green: 128,
+  red: 64,
   orange: 192,
 } as const;
 
