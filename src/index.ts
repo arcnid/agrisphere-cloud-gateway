@@ -8,7 +8,7 @@ const execAsync = promisify(exec);
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const PLC_IP = "192.168.1.10";
 const PLC_SLOT = 0; // CPU built-in port
-const SCAN_RATE = 100; // ms between reads
+const SCAN_RATE = 1000; // ms between reads
 const MAX_CONNECT_RETRIES = 5; // how many times to retry
 const INITIAL_RETRY_DELAY = 2000; // ms
 
