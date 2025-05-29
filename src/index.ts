@@ -14,7 +14,7 @@ const INITIAL_RETRY_DELAY = 2000; // ms
 
 // ─── MYSQL POOL ──────────────────────────────────────────────────────────────
 const pool = mysql.createPool({
-  host: "172.31.37.116",
+  host: "ec2-54-214-206-247.us-west-2.compute.amazonaws.com",
   port: 3306,
   user: "admin",
   password: "Agsadmin_1",
