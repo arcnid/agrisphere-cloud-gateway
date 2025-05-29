@@ -149,8 +149,9 @@ async function main() {
   console.log(`Starting scan @ ${SCAN_RATE}ms...`);
   plc.scan();
 
-  // ←— Initial Push to Supabase —────────────────────────────────────────────
-  console.log("🚀 Initial sweep: pushing all tag values…");
+  // wait one scan cycle so tag.value has actual data
+  await delay(SCAN_RATE);
+  console.log("🚀 Initial sweep (after first scan): pushing all tag values…");
   for (const tag of tags) {
     try {
       await insertReading(tag.name, tag.value);
