@@ -160,6 +160,14 @@ async function main() {
     }
   }
 
+  //log out the current tag values
+
+  console.log("🔧 Debug: current tag values:");
+  tags.forEach((tag) => {
+    console.log(`${tag.name.padEnd(30)} ≔ ${tag.value}`);
+  });
+  console.log("🚀 Initial sweep (after one scan): pushing all tag values…");
+
   // ─── PERIODIC PUSH (every 30 minutes) ────────────────────────────────────────
   const THIRTY_MIN = 30 * 60 * 1000;
   setInterval(async () => {
