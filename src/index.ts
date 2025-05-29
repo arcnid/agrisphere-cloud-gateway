@@ -1,15 +1,16 @@
-const { Controller, Tag } = require("st-ethernet-ip");
-const { createClient } = require("@supabase/supabase-js");
+import { Controller, Tag } from "st-ethernet-ip";
+import { createClient } from "@supabase/supabase-js";
 
 // ─── CONFIG ─────────────────────────────────────────────────────────────────
 const PLC_IP = "192.168.1.10";
 const PLC_SLOT = 0; // CPU built-in port
 const SCAN_RATE = 100; // ms between reads
+const MAX_CONNECT_RETRIES = 5; // how many times to retry
+const INITIAL_RETRY_DELAY = 2000; // ms
 
 // Supabase setup (via env)
-const SUPABASE_URL = "https://pzndsucdxloknrgecijj.supabase.co";
-const SUPABASE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6bmRzdWNkeGxva25yZ2VjaWpqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0MDc2NjQ5NywiZXhwIjoyMDU2MzQyNDk3fQ.ozasWT_E1uuu1ceEmPSmLrEYhLBHsDWhgqKcGv9IZJk";
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error(
     "Error: SUPABASE_URL and SUPABASE_KEY must be set as environment variables."
@@ -34,7 +35,41 @@ const tagNames = [
   "Agrisphere:O.Data[11]",
 ];
 
-// ─── MAIN ───────────────────────────────────────────────────────────────────
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function connectWithRetry(controller: Controller) {
+  let attempt = 0;
+  let delayMs = INITIAL_RETRY_DELAY;
+  while (attempt < MAX_CONNECT_RETRIES) {
+    try {
+      attempt++;
+      console.log(
+        `Connecting to PLC @ ${PLC_IP} (slot ${PLC_SLOT}), attempt ${attempt}...`
+      );
+      await controller.connect(PLC_IP, PLC_SLOT);
+      console.log("PLC connected successfully.");
+      return;
+    } catch (err: any) {
+      console.error(
+        `Connection attempt ${attempt} failed:`,
+        err.message || err
+      );
+      if (attempt < MAX_CONNECT_RETRIES) {
+        console.log(`Retrying in ${delayMs}ms...`);
+        await delay(delayMs);
+        delayMs *= 2;
+      } else {
+        console.error(
+          `Exceeded maximum retries (${MAX_CONNECT_RETRIES}). Exiting.`
+        );
+        process.exit(1);
+      }
+    }
+  }
+}
+
 async function main() {
   const plc = new Controller();
 
@@ -42,31 +77,41 @@ async function main() {
   tagNames.forEach((name) => plc.subscribe(new Tag(name)));
 
   // Handle init & changes
-  plc.forEach((tag) => {
-    tag.on("Initialized", async (t) => {
+  plc.forEach((tag: Tag) => {
+    tag.on("Initialized", async (t: Tag) => {
       console.log(`INIT ${t.name}:`, t.value);
       await insertReading(t.name, t.value);
     });
-    tag.on("Changed", async (t, prev) => {
+    tag.on("Changed", async (t: Tag, prev: any) => {
       console.log(`CHG  ${t.name}:`, prev, "→", t.value);
       await insertReading(t.name, t.value);
     });
+    return tag;
   });
 
-  // Connect & start scan
-  console.log(`Connecting to PLC @ ${PLC_IP} (slot ${PLC_SLOT})…`);
-  await plc.connect(PLC_IP, PLC_SLOT);
+  // catch runtime errors and attempt reconnect
+  plc.on("error", async (err: Error) => {
+    console.error("PLC error:", err.message || err);
+    console.log("Attempting to reconnect...");
+    try {
+      plc.disconnect();
+    } catch {}
+    await connectWithRetry(plc);
+    plc.scan_rate = SCAN_RATE;
+    plc.scan();
+  });
+
+  // initial connect + scan
+  await connectWithRetry(plc);
   plc.scan_rate = SCAN_RATE;
   console.log(`Starting scan @ ${SCAN_RATE}ms...`);
   plc.scan();
-
-  plc.on("error", (e) => console.error("PLC error:", e));
 }
 
 /**
  * Inserts a tag reading into Supabase
  */
-async function insertReading(tagName, value) {
+async function insertReading(tagName: string, value: any) {
   const { error } = await supabase
     .from("tag_readings")
     .insert([
@@ -77,7 +122,7 @@ async function insertReading(tagName, value) {
   }
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
+main().catch((err: any) => {
+  console.error("Fatal error in main():", err.message || err);
   process.exit(1);
 });

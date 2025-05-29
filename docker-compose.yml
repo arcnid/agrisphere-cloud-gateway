@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  plc-bridge:
+    image: plc-supabase-bridge:latest # or your registry/name:tag
+    build: . # only if you’re shipping source + Dockerfile
+    network_mode: host # so it sees both NICs exactly like host
+    env_file:
+      - .env # contains SUPABASE_URL & SUPABASE_KEY
+    restart: unless-stopped
