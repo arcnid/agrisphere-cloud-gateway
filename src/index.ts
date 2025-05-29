@@ -127,23 +127,11 @@ async function connectWithRetry(controller: Controller) {
 async function main() {
   const plc = new Controller();
 
-  // Subscribe tags before connect
-  tagNames.forEach((name) => plc.subscribe(new Tag(name)));
+  // ─── CREATE & SUBSCRIBE TAGS ────────────────────────────────────────────────
+  const tags = tagNames.map((name) => new Tag(name));
+  tags.forEach((tag) => plc.subscribe(tag));
 
-  // Handle init & changes
-  plc.forEach((tag: Tag) => {
-    tag.on("Initialized", async (t: Tag) => {
-      console.log(`INIT ${t.name}:`, t.value);
-      await insertReading(t.name, t.value);
-    });
-    tag.on("Changed", async (t: Tag, prev: any) => {
-      console.log(`CHG  ${t.name}:`, prev, "→", t.value);
-      await insertReading(t.name, t.value);
-    });
-    return tag;
-  });
-
-  // catch runtime errors and attempt reconnect
+  // ─── ERROR HANDLING & RECONNECT ─────────────────────────────────────────────
   plc.on("error", async (err: Error) => {
     console.error("PLC error:", err.message || err);
     console.log("Attempting to reconnect...");
@@ -155,12 +143,24 @@ async function main() {
     plc.scan();
   });
 
-  // initial connect + scan
+  // ─── INITIAL CONNECT & SCAN ─────────────────────────────────────────────────
   await connectWithRetry(plc);
-
   plc.scan_rate = SCAN_RATE;
   console.log(`Starting scan @ ${SCAN_RATE}ms...`);
   plc.scan();
+
+  // ─── PERIODIC PUSH (every 30 minutes) ────────────────────────────────────────
+  const THIRTY_MIN = 30 * 60 * 1000;
+  setInterval(async () => {
+    console.log("⏰ 30-minute sweep: pushing all tag values…");
+    for (const tag of tags) {
+      try {
+        await insertReading(tag.name, tag.value);
+      } catch (err) {
+        console.error(`Failed to push ${tag.name}:`, err);
+      }
+    }
+  }, THIRTY_MIN);
 }
 
 /**
@@ -175,11 +175,9 @@ async function insertReading(tagName: string, value: any) {
     value,
   };
 
-  // ▶️ DEBUG: print what we're inserting
   console.log("Inserting row:", JSON.stringify(row));
 
   const { data, error } = await supabase.from("tag_readings").insert([row]);
-
   if (error) {
     console.error("Supabase insert error:", error.message, error.details);
   } else {
