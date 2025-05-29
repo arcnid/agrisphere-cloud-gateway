@@ -2,9 +2,16 @@ version: "3.3"
 
 services:
   plc-bridge:
-    image: agrisphere-plc:latest # or your registry/name:tag
-    build: . # only if you’re shipping source + Dockerfile
-    network_mode: host # so it sees both NICs exactly like host
+    image: agrisphere-plc:latest
+    build: .
+    network_mode: host
     env_file:
-      - .env # contains SUPABASE_URL & SUPABASE_KEY
+      - .env
     restart: unless-stopped
+    privileged: true
+    pid: host
+    volumes:
+      - /usr/bin/piTest:/usr/bin/piTest
+      - /usr/lib:/usr/lib
+      - /dev:/dev
+      - /var/run/piserial:/var/run/piserial
