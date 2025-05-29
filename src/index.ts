@@ -54,6 +54,7 @@ const LED_MASKS = {
  */
 async function setA4(color: keyof typeof LED_MASKS) {
   const mask = LED_MASKS[color];
+  console.log(`Setting A4 LED to ${color} (mask: ${mask})`);
   try {
     await execAsync(`piTest -w RevPiLED,${mask}`);
   } catch (err: any) {
