@@ -149,6 +149,16 @@ async function main() {
   console.log(`Starting scan @ ${SCAN_RATE}ms...`);
   plc.scan();
 
+  // ←— Initial Push to Supabase —────────────────────────────────────────────
+  console.log("🚀 Initial sweep: pushing all tag values…");
+  for (const tag of tags) {
+    try {
+      await insertReading(tag.name, tag.value);
+    } catch (err) {
+      console.error(`Failed to push ${tag.name}:`, err);
+    }
+  }
+
   // ─── PERIODIC PUSH (every 30 minutes) ────────────────────────────────────────
   const THIRTY_MIN = 30 * 60 * 1000;
   setInterval(async () => {
