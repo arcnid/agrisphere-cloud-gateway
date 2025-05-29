@@ -19,6 +19,7 @@
   "description": "",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",
+    "mysql2": "^3.14.1",
     "st-ethernet-ip": "^2.7.5"
   }
 }

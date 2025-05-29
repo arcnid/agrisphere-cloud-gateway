@@ -1,7 +1,7 @@
 import { Controller, Tag } from "st-ethernet-ip";
-import { createClient } from "@supabase/supabase-js";
 import { exec } from "child_process";
 import { promisify } from "util";
+import mysql from "mysql2/promise";
 
 const execAsync = promisify(exec);
 
@@ -12,16 +12,17 @@ const SCAN_RATE = 1000; // ms between reads
 const MAX_CONNECT_RETRIES = 5; // how many times to retry
 const INITIAL_RETRY_DELAY = 2000; // ms
 
-// Supabase setup (via env)
-const SUPABASE_URL = process.env.SUPABASE_URL || "";
-const SUPABASE_KEY = process.env.SUPABASE_KEY || "";
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error(
-    "Error: SUPABASE_URL and SUPABASE_KEY must be set as environment variables."
-  );
-  process.exit(1);
-}
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// ─── MYSQL POOL ──────────────────────────────────────────────────────────────
+const pool = mysql.createPool({
+  host: "172.31.37.116",
+  port: 3306,
+  user: "admin",
+  password: "Agsadmin_1",
+  database: "agtraining", // ← set your DB name here
+  waitForConnections: true,
+  connectionLimit: 10,
+  timezone: "Z",
+});
 
 // ─── TAGS ───────────────────────────────────────────────────────────────────
 const tagNames = [
@@ -41,7 +42,7 @@ const tagNames = [
 
 // ─── TAG → LABEL MAP ─────────────────────────────────────────────────────────
 const tagLabelMap: Record<string, string> = {
-  "Agrisphere:O.Data[10]": "Rpm",
+  "Agrisphere:O.Data[10]": "West Bearing",
   "Agrisphere:O.Data[0]": "North Head Bearing",
   "Agrisphere:O.Data[4]": "North Head Rub Block",
   "Agrisphere:O.Data[1]": "South Head Bearing",
@@ -51,7 +52,7 @@ const tagLabelMap: Record<string, string> = {
   "Agrisphere:O.Data[2]": "North Boot Bearing",
   "Agrisphere:O.Data[3]": "South Boot Bearing",
   "Agrisphere:O.Data[9]": "East Bearing",
-  "Agrisphere:O.Data[8]": "West Bearing",
+  "Agrisphere:O.Data[8]": "Rpm",
   "Agrisphere:O.Data[11]": "Inventory Placeholder",
 };
 
@@ -160,8 +161,6 @@ async function main() {
     }
   }
 
-  //log out the current tag values
-
   console.log("🔧 Debug: current tag values:");
   tags.forEach((tag) => {
     console.log(`${tag.name.padEnd(30)} ≔ ${tag.value}`);
@@ -183,24 +182,21 @@ async function main() {
 }
 
 /**
- * Inserts a tag reading into Supabase, now with display_name.
+ * Inserts a tag reading into MySQL.
  */
 async function insertReading(tagName: string, value: any) {
   const displayName = tagLabelMap[tagName] || tagName;
-  const row = {
-    timestamp: new Date().toISOString(),
-    tag_name: tagName,
-    display_name: displayName,
-    value,
-  };
-
-  console.log("Inserting row:", JSON.stringify(row));
-
-  const { data, error } = await supabase.from("tag_readings").insert([row]);
-  if (error) {
-    console.error("Supabase insert error:", error.message, error.details);
-  } else {
-    console.log("Insert succeeded, returned:", data);
+  const sql = `
+    INSERT INTO tag_readings
+      (\`timestamp\`, tag_name, value, display_name)
+    VALUES
+      (UTC_TIMESTAMP(), ?, ?, ?)
+  `;
+  try {
+    const [result] = await pool.execute(sql, [tagName, value, displayName]);
+    console.log("MySQL insert OK:", result);
+  } catch (err: any) {
+    console.error("MySQL insert error:", err.message);
   }
 }
 
